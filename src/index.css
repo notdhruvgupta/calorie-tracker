@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", sans-serif;
+  --font-heading: "Syne", sans-serif;
+
+  --color-accent: #a78bfa;
+  --color-accent-light: #c4b5fd;
+  --color-accent-dim: #7c3aed;
+  --color-surface: #171717;
+  --color-surface-light: #262626;
+  --color-surface-lighter: #404040;
+  --color-danger: #f87171;
+  --color-success: #4ade80;
+}
