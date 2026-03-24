@@ -1,68 +1,73 @@
 import { useState, useCallback, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import AddFood from './components/AddFood';
+import Analytics from './components/Analytics';
+import AuthPage from './components/AuthPage';
 import Modal from './components/Modal';
 import Button from './components/Button';
-import { getSettings, saveSettings, getTodayLog, saveTodayLog } from './utils/storage';
+import { useAuth } from './context/AuthContext';
+import { api } from './utils/api';
 
 export default function App() {
-  const [settings, setSettings] = useState(getSettings);
-  const [entries, setEntries] = useState(getTodayLog);
+  const { isAuthenticated, user, logout, updateUser } = useAuth();
+  const [entries, setEntries] = useState([]);
+  const [goal, setGoal] = useState(user?.dailyGoal || 2000);
   const [screen, setScreen] = useState('dashboard');
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    return !localStorage.getItem('calorie:settings:user');
-  });
   const [showSettings, setShowSettings] = useState(false);
-  const [goalInput, setGoalInput] = useState(settings.dailyGoal);
+  const [goalInput, setGoalInput] = useState(goal);
+  const [loading, setLoading] = useState(true);
 
+  // Load today's entries from backend
   useEffect(() => {
-    saveTodayLog(entries);
-  }, [entries]);
+    if (!isAuthenticated) return;
+    const today = new Date().toISOString().slice(0, 10);
+    api.getEntries(today)
+      .then(setEntries)
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }, [isAuthenticated]);
 
-  const handleSaveOnboarding = useCallback(() => {
-    const goal = Number(goalInput) || 2000;
-    const newSettings = { dailyGoal: goal };
-    saveSettings(newSettings);
-    setSettings(newSettings);
-    setShowOnboarding(false);
-  }, [goalInput]);
+  // Sync goal from user on login
+  useEffect(() => {
+    if (user?.dailyGoal) setGoal(user.dailyGoal);
+  }, [user?.dailyGoal]);
 
-  const handleSaveSettings = useCallback(() => {
-    const goal = Number(goalInput) || 2000;
-    const newSettings = { dailyGoal: goal };
-    saveSettings(newSettings);
-    setSettings(newSettings);
+  const handleSaveSettings = useCallback(async () => {
+    const g = Number(goalInput) || 2000;
+    await api.updateSettings(g);
+    setGoal(g);
+    updateUser({ dailyGoal: g });
     setShowSettings(false);
-  }, [goalInput]);
+  }, [goalInput, updateUser]);
 
-  const handleConfirmFood = useCallback((entry) => {
-    setEntries((prev) => [...prev, entry]);
+  const handleConfirmFood = useCallback(async (entry) => {
+    const saved = await api.createEntry({
+      category: entry.category,
+      dishName: entry.dishName,
+      items: entry.items,
+      totalCalories: entry.totalCalories,
+    });
+    setEntries((prev) => [...prev, saved]);
     setScreen('dashboard');
   }, []);
 
-  const handleDelete = useCallback((id) => {
+  const handleDelete = useCallback(async (id) => {
+    await api.deleteEntry(id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
+  if (!isAuthenticated) return <AuthPage />;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <span className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
-      {/* Onboarding Modal */}
-      <Modal open={showOnboarding} title="Welcome">
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-neutral-400">Set your daily calorie goal to get started.</p>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-500">Daily calorie goal</label>
-            <input
-              type="number"
-              value={goalInput}
-              onChange={(e) => setGoalInput(e.target.value)}
-              className="bg-surface border border-surface-lighter rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent transition-colors"
-            />
-          </div>
-          <Button onClick={handleSaveOnboarding}>Get Started</Button>
-        </div>
-      </Modal>
-
       {/* Settings Modal */}
       <Modal open={showSettings} onClose={() => setShowSettings(false)} title="Settings">
         <div className="flex flex-col gap-4">
@@ -90,18 +95,26 @@ export default function App() {
       {screen === 'dashboard' && (
         <Dashboard
           entries={entries}
-          goal={settings.dailyGoal}
+          goal={goal}
           onAddFood={() => setScreen('add')}
           onDelete={handleDelete}
           onOpenSettings={() => {
-            setGoalInput(settings.dailyGoal);
+            setGoalInput(goal);
             setShowSettings(true);
           }}
+          onAnalytics={() => setScreen('analytics')}
+          onLogout={logout}
         />
       )}
       {screen === 'add' && (
         <AddFood
           onConfirm={handleConfirmFood}
+          onBack={() => setScreen('dashboard')}
+        />
+      )}
+      {screen === 'analytics' && (
+        <Analytics
+          goal={goal}
           onBack={() => setScreen('dashboard')}
         />
       )}
