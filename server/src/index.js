@@ -53,4 +53,4 @@ app.use((err, _req, res, _next) => {
 // Run migrations then start
 runMigrations()
   .then(() => app.listen(PORT, () => console.log(`Server running on :${PORT}`)))
-  .catch((err) => { console.error('Startup failed:', err.message); process.exit(1); });
+  .catch((err) => { console.error('Startup failed:', err); process.exit(1); });
