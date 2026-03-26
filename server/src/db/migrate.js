@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import pool from './pool.js';
 
 const SQL = `
@@ -24,12 +23,17 @@ CREATE TABLE IF NOT EXISTS food_entries (
 CREATE INDEX IF NOT EXISTS idx_entries_user_date ON food_entries(user_id, date);
 `;
 
-try {
+export async function runMigrations() {
   await pool.query(SQL);
-  console.log('Migration complete');
-} catch (err) {
-  console.error('Migration failed:', err.message);
-  process.exit(1);
-} finally {
-  await pool.end();
+  console.log('Migrations complete');
+}
+
+// Allow running directly: node src/db/migrate.js
+const isMain = process.argv[1]?.endsWith('migrate.js');
+if (isMain) {
+  import('dotenv/config').then(() =>
+    runMigrations()
+      .then(() => process.exit(0))
+      .catch((err) => { console.error('Migration failed:', err.message); process.exit(1); })
+  );
 }
